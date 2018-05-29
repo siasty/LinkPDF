@@ -18,40 +18,44 @@ namespace LinkPDF
 {
     class PdfManager
     {
-        public void Stamp(string source, string stampFile)
+        public void Stamp(string[] sources, string stampFile,float opacity,float x, float y)
         {
-            string dest = "";
-            PdfExtGState tranState = new PdfExtGState();
-            tranState.SetFillOpacity(0.1f);
-            byte[] imgdata = System.IO.File.ReadAllBytes(stampFile);
+            
+            byte[] imgdata = File.ReadAllBytes(stampFile);
 
             ImageData img = ImageDataFactory.Create(imgdata);
-            PdfReader reader = new PdfReader(source);
-            dest = source.Replace(".pdf", "_s.pdf");
-
-            PdfWriter writer = new PdfWriter(dest);
-            PdfDocument pdf = new PdfDocument(reader, writer);
-            for (int i = 1; i <= pdf.GetNumberOfPages(); i++)
+            if (sources.Count() > 2)
             {
-                PdfPage page = pdf.GetPage(i);
-                PdfCanvas canvas = new PdfCanvas(page);
-                canvas.SaveState().SetExtGState(tranState);
-                canvas.AddImage(img, 200, 300, false);
-                canvas.RestoreState();
-
+                foreach (var item in sources.Skip(2))
+                {
+                    if (File.Exists(item))
+                    {
+                        using (PdfDocument pdf = new PdfDocument(new PdfReader(item), new PdfWriter(item.Replace(".pdf", "_stamp.pdf"))))
+                        {
+                      
+                            for (int i = 1; i <= pdf.GetNumberOfPages(); i++)
+                            {
+                                    PdfPage page = pdf.GetPage(i);
+                                    PdfExtGState tranState = new PdfExtGState();
+                                    tranState.SetFillOpacity(opacity);
+                                    PdfCanvas canvas = new PdfCanvas(pdf.GetPage(i));
+                                    canvas.SaveState().SetExtGState(tranState);
+                                    canvas.AddImage(img, x, y, false);
+                                    canvas.RestoreState();
+                            } 
+                        }
+                    }
+                }
             }
-
-            pdf.Close();
-
         }
 
         public void ManipulatePdf(String dest, string[] sources)
         {
 
-            PdfDocument pdfDoc = new PdfDocument(new PdfReader(sources[0]), new PdfWriter(dest));
-            if (sources.Count() > 1)
+            PdfDocument pdfDoc = new PdfDocument(new PdfReader(sources[1]), new PdfWriter(dest));
+            if (sources.Count() > 2)
             {
-                foreach (var item in sources.Skip(1))
+                foreach (var item in sources.Skip(2))
                 {
                     if (File.Exists(item))
                     {
@@ -66,32 +70,40 @@ namespace LinkPDF
 
         }
 
-        public void ReadTextFromPage(string str,string pdfPath)
+        public void FindTextInPdf(string SearchStr, string[] sources)
         {
-            using (PdfReader reader = new PdfReader(pdfPath))
-            using (var doc = new PdfDocument(reader))
+            if (sources.Count() > 2)
             {
-
-                var pageCount = doc.GetNumberOfPages();
-
-                for (int i = 1; i <= pageCount; i++)
+                foreach (var item in sources.Skip(2))
                 {
-                    PdfPage page = doc.GetPage(i);
-                    var box = page.GetCropBox();
-                    var rect = new Rectangle(box.GetX(), box.GetY(), box.GetWidth(), box.GetHeight());
+                    if (File.Exists(item))
+                    {
+                        using (PdfReader reader = new PdfReader(item))
+                        using (var doc = new PdfDocument(reader))
+                        {
 
-                    var filter = new IEventFilter[1];
-                    filter[0] = new TextRegionEventFilter(rect);
+                            var pageCount = doc.GetNumberOfPages();
+
+                            for (int i = 1; i <= pageCount; i++)
+                            {
+                                PdfPage page = doc.GetPage(i);
+                                var box = page.GetCropBox();
+                                var rect = new Rectangle(box.GetX(), box.GetY(), box.GetWidth(), box.GetHeight());
+
+                                var filter = new IEventFilter[1];
+                                    filter[0] = new TextRegionEventFilter(rect);
 
 
-                    ITextExtractionStrategy strategy = new FilteredTextEventListener(new LocationTextExtractionStrategy(), filter);
+                                ITextExtractionStrategy strategy = new FilteredTextEventListener(new LocationTextExtractionStrategy(), filter);
 
-                    var str1 = PdfTextExtractor.GetTextFromPage(page, strategy);
-
-
-                    Console.WriteLine(str1);
-
-
+                                var str = PdfTextExtractor.GetTextFromPage(page, strategy);
+                                if (str.Contains(SearchStr) == true)
+                                {
+                                    Console.WriteLine("Searched text found in file:[ " + item + " ] page : [ " + i + " ]");
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
